@@ -10,15 +10,14 @@ import (
 
 	"github.com/adamjeanlaurent/github-api-read-cache-service/config"
 	githubclient "github.com/adamjeanlaurent/github-api-read-cache-service/github-client"
-	"github.com/google/go-github/v67/github"
 	"go.uber.org/zap"
 )
 
 type Cache interface {
 	StartSyncLoop()
-	GetNetflixOrganization() *github.Organization
-	GetNetflixOrganizationMembers() []*github.User
-	GetNetflixOrganizationRepos() []*github.Repository
+	GetNetflixOrganization() githubclient.JsonResponse
+	GetNetflixOrganizationMembers() []githubclient.JsonResponse
+	GetNetflixOrganizationRepos() []githubclient.JsonResponse
 	GetBottomNetflixReposByForks() []Tuple
 	GetBottomNetflixReposByUpdateTime() []Tuple
 	GetBottomNetflixReposByOpenIssues() []Tuple
@@ -29,9 +28,9 @@ type Cache interface {
 type Tuple = [2]interface{}
 
 type cacheData struct {
-	netflixOrganization                *github.Organization
-	netflixOrganizationMembers         []*github.User
-	netflixOrganizationRepos           []*github.Repository
+	netflixOrganization                githubclient.JsonResponse
+	netflixOrganizationMembers         []githubclient.JsonResponse
+	netflixOrganizationRepos           []githubclient.JsonResponse
 	viewBottomNetflixReposByForks      []Tuple
 	viewBottomNetflixReposByUpdateTime []Tuple
 	viewBottomNetflixReposByOpenIssues []Tuple
@@ -121,11 +120,36 @@ func (c *cache) hydrateCache() (int, error) {
 	var bottomNetflixReposByStars []Tuple
 
 	for _, repo := range netflixOrgRepos {
-		repoName := fmt.Sprintf("Netflix/%s", *repo.Name)
-		bottomNetflixReposByForks = append(bottomNetflixReposByForks, Tuple{repoName, *repo.ForksCount})
-		bottomNetflixReposByUpdateTime = append(bottomNetflixReposByUpdateTime, Tuple{repoName, repo.UpdatedAt.GetTime().Format(time.RFC3339)})
-		bottomNetflixReposByOpenIssues = append(bottomNetflixReposByOpenIssues, Tuple{repoName, *repo.OpenIssuesCount})
-		bottomNetflixReposByStars = append(bottomNetflixReposByStars, Tuple{repoName, *repo.StargazersCount})
+		repoName, ok := repo["name"].(string)
+		if !ok {
+			return http.StatusInternalServerError, fmt.Errorf("Missing repository name")
+		}
+		repoName = fmt.Sprintf("Netflix/%s", repoName)
+
+		updatedTime, ok := repo["updated_at"].(string)
+		if !ok {
+			return http.StatusInternalServerError, fmt.Errorf("Missing Updated time for repository")
+		}
+
+		openIssuesCount, ok := repo["open_issues_count"].(float64)
+		if !ok {
+			return http.StatusInternalServerError, fmt.Errorf("Missing issue count for repository")
+		}
+
+		starCount, ok := repo["stargazers_count"].(float64)
+		if !ok {
+			return http.StatusInternalServerError, fmt.Errorf("Missing star count for repository")
+		}
+
+		forksCount, ok := repo["forks_count"].(float64)
+		if !ok {
+			return http.StatusInternalServerError, fmt.Errorf("Missing forks count for repository")
+		}
+
+		bottomNetflixReposByForks = append(bottomNetflixReposByForks, Tuple{repoName, forksCount})
+		bottomNetflixReposByUpdateTime = append(bottomNetflixReposByUpdateTime, Tuple{repoName, updatedTime})
+		bottomNetflixReposByOpenIssues = append(bottomNetflixReposByOpenIssues, Tuple{repoName, openIssuesCount})
+		bottomNetflixReposByStars = append(bottomNetflixReposByStars, Tuple{repoName, starCount})
 	}
 
 	sortBottomViewByTimestamp(bottomNetflixReposByUpdateTime)
@@ -152,8 +176,8 @@ func (c *cache) hydrateCache() (int, error) {
 
 func sortBottomViewByCount(tuples []Tuple) {
 	sort.Slice(tuples, func(a int, b int) bool {
-		countA := tuples[a][1].(int)
-		countB := tuples[b][1].(int)
+		countA := tuples[a][1].(float64)
+		countB := tuples[b][1].(float64)
 
 		if countA == countB {
 			nameA := tuples[a][0].(string)
@@ -175,21 +199,21 @@ func sortBottomViewByTimestamp(tuples []Tuple) {
 	})
 }
 
-func (c *cache) GetNetflixOrganization() *github.Organization {
+func (c *cache) GetNetflixOrganization() githubclient.JsonResponse {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
 
 	return c.data.netflixOrganization
 }
 
-func (c *cache) GetNetflixOrganizationMembers() []*github.User {
+func (c *cache) GetNetflixOrganizationMembers() []githubclient.JsonResponse {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
 
 	return c.data.netflixOrganizationMembers
 }
 
-func (c *cache) GetNetflixOrganizationRepos() []*github.Repository {
+func (c *cache) GetNetflixOrganizationRepos() []githubclient.JsonResponse {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
 

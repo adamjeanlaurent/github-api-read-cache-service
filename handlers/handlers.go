@@ -158,7 +158,7 @@ func (handler *httpHandlers) getBottomNReposHelper(w http.ResponseWriter, r *htt
 
 func (handler *httpHandlers) ProxyRequestToGithubAPI() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		targetURL := "http:/api.github.com" + r.URL.Path
+		targetURL := "https://api.github.com" + r.URL.Path
 
 		proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
 		if err != nil {
@@ -174,7 +174,11 @@ func (handler *httpHandlers) ProxyRequestToGithubAPI() http.Handler {
 			}
 		}
 
-		proxyReq.Header.Set("Authorization", "Bearer "+handler.cfg.GetGitHubApiKey())
+		gitHubApiKey := handler.cfg.GetGitHubApiKey()
+
+		if len(gitHubApiKey) > 0 {
+			proxyReq.Header.Set("Authorization", "Bearer "+handler.cfg.GetGitHubApiKey())
+		}
 
 		// Send the request to the target service
 		client := &http.Client{}

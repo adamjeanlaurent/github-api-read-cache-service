@@ -2,88 +2,189 @@ package githubclient
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"time"
 
 	"github.com/adamjeanlaurent/github-api-read-cache-service/config"
-	"github.com/google/go-github/v67/github"
+	"go.uber.org/zap"
 )
 
+const (
+	GITHUB_API_URL               string = "https://api.github.com"
+	ENDPOINT_ORG_NETFLIX         string = GITHUB_API_URL + "/orgs/Netflix"
+	ENDPOINT_ORG_NETFLIX_MEMBERS string = GITHUB_API_URL + "/orgs/Netflix/members"
+	ENDPOINT_ORG_NETFLIX_REPOS   string = GITHUB_API_URL + "/orgs/Netflix/repos"
+	PAGE_SIZE                    int    = 100
+)
+
+type JsonResponse map[string]interface{}
+
 type GithubClient interface {
-	GetNetflixOrg(ctx context.Context) (*github.Organization, error, int)
-	GetNetflixOrgMembers(ctx context.Context) ([]*github.User, error, int)
-	GetNetflixRepos(ctx context.Context) ([]*github.Repository, error, int)
+	ForwardRequest(w http.ResponseWriter, r *http.Request, logger *zap.Logger)
+	GetNetflixOrg(ctx context.Context) (JsonResponse, error, int)
+	GetNetflixOrgMembers(ctx context.Context) ([]JsonResponse, error, int)
+	GetNetflixRepos(ctx context.Context) ([]JsonResponse, error, int)
 }
 
 type githubClient struct {
-	client *github.Client
+	httpClient *http.Client
+	apiKey     string
 }
 
-func (ghc *githubClient) GetNetflixOrg(ctx context.Context) (*github.Organization, error, int) {
-	org, resp, err := ghc.client.Organizations.Get(ctx, "Netflix")
-	return org, err, resp.StatusCode
-}
-
-func (ghc *githubClient) GetNetflixOrgMembers(ctx context.Context) ([]*github.User, error, int) {
-	var allMembers []*github.User
-
-	opts := &github.ListMembersOptions{
-		PublicOnly:  true,
-		ListOptions: github.ListOptions{PerPage: 100},
+func NewGithubClient(cfg config.Configuration) GithubClient {
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
 	}
 
+	return &githubClient{
+		httpClient: httpClient,
+		apiKey:     cfg.GetGitHubApiKey(),
+	}
+}
+
+func (ghc *githubClient) GetNetflixOrg(ctx context.Context) (JsonResponse, error, int) {
+	return ghc.sendGithubApiRequest(http.MethodGet, ENDPOINT_ORG_NETFLIX, ctx)
+
+}
+
+func (ghc *githubClient) GetNetflixOrgMembers(ctx context.Context) ([]JsonResponse, error, int) {
+	return ghc.sendPaginatedGithubApiRequests(http.MethodGet, ENDPOINT_ORG_NETFLIX_MEMBERS, ctx)
+}
+
+func (ghc *githubClient) GetNetflixRepos(ctx context.Context) ([]JsonResponse, error, int) {
+	return ghc.sendPaginatedGithubApiRequests(http.MethodGet, ENDPOINT_ORG_NETFLIX_REPOS, ctx)
+}
+
+func (ghc *githubClient) sendPaginatedGithubApiRequests(method string, url string, ctx context.Context) ([]JsonResponse, error, int) {
+	nextPage := 1
+	var flatResponse []JsonResponse
+
 	for {
-		members, resp, err := ghc.client.Organizations.ListMembers(ctx, "Netflix", opts)
+		requestUrl := fmt.Sprintf("%s?per_page=%d&page=%d", url, PAGE_SIZE, nextPage)
+
+		req, err := http.NewRequestWithContext(ctx, method, requestUrl, nil)
 		if err != nil {
-			return []*github.User{}, err, resp.StatusCode
+			return nil, fmt.Errorf("Failed to create request: %v", err), http.StatusInternalServerError
 		}
 
-		allMembers = append(allMembers, members...)
+		if len(ghc.apiKey) > 0 {
+			req.Header.Set("Authorization", "Bearer "+ghc.apiKey)
+		}
 
-		if resp.NextPage == 0 {
+		resp, err := ghc.httpClient.Do(req)
+		if err != nil {
+			return nil, err, resp.StatusCode
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("Request failed"), resp.StatusCode
+		}
+
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to read response body: %v", err), http.StatusInternalServerError
+		}
+
+		var result []JsonResponse
+		if err := json.Unmarshal(body, &result); err != nil {
+			return nil, fmt.Errorf("error unmarshalling JSON: %v", err), http.StatusInternalServerError
+		}
+
+		if len(result) == 0 {
 			break
 		}
 
-		opts.Page = resp.NextPage
+		flatResponse = append(flatResponse, result...)
+
+		nextPage++
 	}
 
-	return allMembers, nil, http.StatusOK
+	return flatResponse, nil, http.StatusOK
 }
 
-func (ghc *githubClient) GetNetflixRepos(ctx context.Context) ([]*github.Repository, error, int) {
-	var allRepos []*github.Repository
-
-	opts := &github.RepositoryListByOrgOptions{
-		Type:        "public",
-		ListOptions: github.ListOptions{PerPage: 100},
+func (ghc *githubClient) sendGithubApiRequest(method string, url string, ctx context.Context) (JsonResponse, error, int) {
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create request: %v", err), http.StatusInternalServerError
 	}
 
-	for {
-		repos, resp, err := ghc.client.Repositories.ListByOrg(ctx, "Netflix", opts)
-		if err != nil {
-			return []*github.Repository{}, err, resp.StatusCode
-		}
-
-		allRepos = append(allRepos, repos...)
-
-		if resp.NextPage == 0 {
-			break
-		}
-
-		opts.Page = resp.NextPage
+	if len(ghc.apiKey) > 0 {
+		req.Header.Set("Authorization", "Bearer "+ghc.apiKey)
 	}
 
-	return allRepos, nil, http.StatusOK
+	resp, err := ghc.httpClient.Do(req)
+	if err != nil {
+		return nil, err, resp.StatusCode
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Request failed"), resp.StatusCode
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to read response body: %v", err), http.StatusInternalServerError
+	}
+
+	var result JsonResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("error unmarshalling JSON: %v", err), http.StatusInternalServerError
+	}
+
+	return result, nil, resp.StatusCode
 }
 
-func NewGithubClient(config config.Configuration) GithubClient {
-	apiKey := config.GetGitHubApiKey()
-	var client *github.Client
+func (ghc *githubClient) ForwardRequest(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
+	targetURL := GITHUB_API_URL + r.URL.Path
 
-	if len(apiKey) > 0 {
-		client = github.NewClient(nil).WithAuthToken(config.GetGitHubApiKey())
-	} else {
-		client = github.NewClient(nil)
+	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
+	if err != nil {
+		logger.Error("Failed to create proxy request", zap.Error(err))
+		http.Error(w, "Failed to create request", http.StatusInternalServerError)
+		return
 	}
 
-	return &githubClient{client: client}
+	// Copy headers from the original request to the new request
+	for header, values := range r.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(header, value)
+		}
+	}
+
+	gitHubApiKey := ghc.apiKey
+
+	if len(gitHubApiKey) > 0 {
+		proxyReq.Header.Set("Authorization", "Bearer "+gitHubApiKey)
+	}
+
+	// Send the request to the target service
+	resp, err := ghc.httpClient.Do(proxyReq)
+	if err != nil {
+		logger.Error("Failed to forward proxy request", zap.Error(err))
+		http.Error(w, "Failed to forward request", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy response headers to the original response
+	for header, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(header, value)
+		}
+	}
+
+	// Write the response status code and body
+	w.WriteHeader(resp.StatusCode)
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		logger.Error("Failed to copy proxy response body", zap.Error(err))
+		http.Error(w, "Failed to copy response body", http.StatusInternalServerError)
+	}
 }
