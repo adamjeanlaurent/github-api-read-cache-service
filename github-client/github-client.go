@@ -43,8 +43,8 @@ func (ghc *githubClient) GetNetflixOrgMembers(ctx context.Context) ([]*github.Us
 		}
 
 		opts.Page = resp.NextPage
-
 	}
+
 	return allMembers, nil
 }
 

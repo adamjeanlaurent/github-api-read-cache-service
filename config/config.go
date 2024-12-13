@@ -2,9 +2,11 @@ package config
 
 import (
 	"errors"
+	"flag"
 	"os"
-	"strconv"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type Configuration interface {
@@ -31,26 +33,25 @@ func (config *configuration) GetCacheTTL() time.Duration {
 	return config.cacheTTL
 }
 
-// expected args: 1: api key, 2: port 3: scrape interval
-func NewConfiguration() (Configuration, error) {
-	if len(os.Args) < 3 {
-		return nil, errors.New("Expected Args = required:{github api key} required:{port} optional:{cacheTTL}")
+func NewConfiguration(logger *zap.Logger) (Configuration, error) {
+	port := flag.Int("port", 0, "Port for server to listen on")
+
+	githubApiKey := os.Getenv("GITHUB_API_TOKEN")
+	if len(githubApiKey) == 0 {
+		logger.Warn("No GITHUB_API_TOKEN envirnment variable found, may be subject to rate limits")
 	}
 
-	githubApiKey := os.Args[1]
-
-	port, err := strconv.Atoi(os.Args[2])
-
-	if err != nil {
-		return nil, errors.New("port must be a valid integer")
+	if *port == 0 {
+		flag.Usage()
+		return nil, errors.New("--port is required")
 	}
 
-	if port < 0 || port > 66535 {
+	if *port < 0 || *port > 66535 {
 		return nil, errors.New("port must be in valid range (1 to 66535) inclusive")
 	}
 
 	// default cache ttl is 10 minutes
 	cacheTtl := 10 * time.Minute
 
-	return &configuration{cacheTTL: cacheTtl, port: port, gitHubApiKey: githubApiKey}, nil
+	return &configuration{cacheTTL: cacheTtl, port: *port, gitHubApiKey: githubApiKey}, nil
 }

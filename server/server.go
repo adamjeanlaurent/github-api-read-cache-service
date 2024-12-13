@@ -16,7 +16,7 @@ import (
 )
 
 func StartServer(logger *zap.Logger) error {
-	cfg, err := config.NewConfiguration()
+	cfg, err := config.NewConfiguration(logger)
 
 	if err != nil {
 		return fmt.Errorf("Invalid Configuration: %w", err)
