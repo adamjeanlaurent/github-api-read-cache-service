@@ -3,12 +3,12 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/adamjeanlaurent/github-api-read-cache-service/cache"
 	"github.com/adamjeanlaurent/github-api-read-cache-service/config"
+	githubclient "github.com/adamjeanlaurent/github-api-read-cache-service/github-client"
 	"go.uber.org/zap"
 )
 
@@ -25,16 +25,18 @@ type HttpHandlers interface {
 }
 
 type httpHandlers struct {
-	cfg       config.Configuration
-	dataCache cache.Cache
-	logger    *zap.Logger
+	cfg          config.Configuration
+	dataCache    cache.Cache
+	logger       *zap.Logger
+	githubClient githubclient.GithubClient
 }
 
-func NewHttpHandlers(cfg config.Configuration, dataCache cache.Cache, logger *zap.Logger) HttpHandlers {
+func NewHttpHandlers(cfg config.Configuration, dataCache cache.Cache, logger *zap.Logger, githubClient githubclient.GithubClient) HttpHandlers {
 	return &httpHandlers{
-		cfg:       cfg,
-		dataCache: dataCache,
-		logger:    logger,
+		cfg:          cfg,
+		dataCache:    dataCache,
+		logger:       logger,
+		githubClient: githubClient,
 	}
 }
 
@@ -158,51 +160,6 @@ func (handler *httpHandlers) getBottomNReposHelper(w http.ResponseWriter, r *htt
 
 func (handler *httpHandlers) ProxyRequestToGithubAPI() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		targetURL := "https://api.github.com" + r.URL.Path
-
-		proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
-		if err != nil {
-			handler.logger.Error("Failed to create proxy request", zap.Error(err))
-			http.Error(w, "Failed to create request", http.StatusInternalServerError)
-			return
-		}
-
-		// Copy headers from the original request to the new request
-		for header, values := range r.Header {
-			for _, value := range values {
-				proxyReq.Header.Add(header, value)
-			}
-		}
-
-		gitHubApiKey := handler.cfg.GetGitHubApiKey()
-
-		if len(gitHubApiKey) > 0 {
-			proxyReq.Header.Set("Authorization", "Bearer "+handler.cfg.GetGitHubApiKey())
-		}
-
-		// Send the request to the target service
-		client := &http.Client{}
-		resp, err := client.Do(proxyReq)
-		if err != nil {
-			handler.logger.Error("Failed to forward proxy request", zap.Error(err))
-			http.Error(w, "Failed to forward request", http.StatusBadGateway)
-			return
-		}
-		defer resp.Body.Close()
-
-		// Copy response headers to the original response
-		for header, values := range resp.Header {
-			for _, value := range values {
-				w.Header().Add(header, value)
-			}
-		}
-
-		// Write the response status code and body
-		w.WriteHeader(resp.StatusCode)
-		_, err = io.Copy(w, resp.Body)
-		if err != nil {
-			handler.logger.Error("Failed to copy proxy response body", zap.Error(err))
-			http.Error(w, "Failed to copy response body", http.StatusInternalServerError)
-		}
+		handler.githubClient.ForwardRequest(w, r, handler.logger)
 	})
 }

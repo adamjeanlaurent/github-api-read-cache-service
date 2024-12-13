@@ -34,7 +34,7 @@ func StartServer(logger *zap.Logger) error {
 
 	mux := http.NewServeMux()
 
-	httpHandlers := handlers.NewHttpHandlers(cfg, dataCache, logger)
+	httpHandlers := handlers.NewHttpHandlers(cfg, dataCache, logger, githubClient)
 
 	mux.Handle("GET /healthcheck", httpHandlers.GetHealth())
 	mux.Handle("GET /orgs/Netflix", httpHandlers.GetCachedNetflixOrg())
