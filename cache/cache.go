@@ -58,8 +58,12 @@ func (c *cache) StartSyncLoop() {
 		c.logger.Info("Hydrating cache for server startup", zap.Int("attempts left", retriesLeft))
 		err := c.hydrateCache()
 		if err == nil {
+			c.logger.Info("Successfully hydrated cache")
 			break
 		}
+
+		c.logger.Warn(fmt.Sprintf("Attempt %d failed backing off for %d seconds", 3-retriesLeft, 5), zap.Error(err))
+		time.Sleep(5 * time.Second)
 		retriesLeft--
 	}
 
