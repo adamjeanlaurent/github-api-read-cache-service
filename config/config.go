@@ -35,6 +35,7 @@ func (config *configuration) GetCacheTTL() time.Duration {
 
 func NewConfiguration(logger *zap.Logger) (Configuration, error) {
 	port := flag.Int("port", 0, "Port for server to listen on")
+	flag.Parse()
 
 	githubApiKey := os.Getenv("GITHUB_API_TOKEN")
 	if len(githubApiKey) == 0 {
@@ -46,7 +47,8 @@ func NewConfiguration(logger *zap.Logger) (Configuration, error) {
 		return nil, errors.New("--port is required")
 	}
 
-	if *port < 0 || *port > 66535 {
+	if *port <= 0 || *port > 66535 {
+		flag.Usage()
 		return nil, errors.New("port must be in valid range (1 to 66535) inclusive")
 	}
 

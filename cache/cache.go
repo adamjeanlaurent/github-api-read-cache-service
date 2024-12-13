@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ type Cache interface {
 	GetBottomNetflixReposByUpdateTime() []Tuple
 	GetBottomNetflixReposByOpenIssues() []Tuple
 	GetBottomNetflixReposByStars() []Tuple
+	GetLastCacheSyncStatus() int
 }
 
 type Tuple = [2]interface{}
@@ -37,32 +39,37 @@ type cacheData struct {
 }
 
 type cache struct {
-	ttl          time.Duration
-	lock         sync.RWMutex
-	githubClient githubclient.GithubClient
-	ctx          context.Context
-	data         *cacheData
-	logger       *zap.Logger
+	ttl                 time.Duration
+	lock                sync.RWMutex
+	githubClient        githubclient.GithubClient
+	ctx                 context.Context
+	data                *cacheData
+	logger              *zap.Logger
+	lastCacheSyncStatus int
 }
 
 func NewCache(cfg config.Configuration, client githubclient.GithubClient, context context.Context, logger *zap.Logger) Cache {
-	return &cache{ttl: time.Duration(cfg.GetCacheTTL()), githubClient: client, ctx: context}
+	return &cache{ttl: time.Duration(cfg.GetCacheTTL()), githubClient: client, ctx: context, logger: logger, lastCacheSyncStatus: http.StatusOK}
 }
 
 func (c *cache) StartSyncLoop() {
 	ticker := time.NewTicker(c.ttl)
 
-	// Try 3 times to initially hydrate the cache
-	retriesLeft := 3
+	// Try 5 times to initially hydrate the cache
+	retriesLeft := 5
 	for retriesLeft > 0 {
 		c.logger.Info("Hydrating cache for server startup", zap.Int("attempts left", retriesLeft))
-		err := c.hydrateCache()
+
+		statusCode, err := c.hydrateCache()
+		c.lastCacheSyncStatus = statusCode
+
 		if err == nil {
 			c.logger.Info("Successfully hydrated cache")
 			break
 		}
 
-		c.logger.Warn(fmt.Sprintf("Attempt %d failed backing off for %d seconds", 3-retriesLeft, 5), zap.Error(err))
+		c.logger.Warn(fmt.Sprintf("Attempt %d failed backing off for %d seconds", 5-retriesLeft, 5), zap.Error(err), zap.Int("Http status code", statusCode))
+
 		time.Sleep(5 * time.Second)
 		retriesLeft--
 	}
@@ -73,13 +80,15 @@ func (c *cache) StartSyncLoop() {
 			select {
 			case <-ticker.C:
 				c.logger.Info("Attempting to re-Hydrate cache")
-				err := c.hydrateCache()
+				statusCode, err := c.hydrateCache()
 
 				if err != nil {
-					c.logger.Error("Failed to hydrate cache", zap.Error(err))
+					c.logger.Error("Failed to hydrate cache", zap.Error(err), zap.Int("Http status code", statusCode))
 				} else {
 					c.logger.Info("Successfully re-hydrated cache")
 				}
+
+				c.lastCacheSyncStatus = statusCode
 			case <-c.ctx.Done():
 				c.logger.Info("Cache Ticker Stopped")
 				return
@@ -88,21 +97,21 @@ func (c *cache) StartSyncLoop() {
 	}()
 }
 
-func (c *cache) hydrateCache() error {
+func (c *cache) hydrateCache() (int, error) {
 	// fetch new data
-	netflixOrgMembers, err := c.githubClient.GetNetflixOrgMembers(c.ctx)
+	netflixOrgMembers, err, statusCode := c.githubClient.GetNetflixOrgMembers(c.ctx)
 	if err != nil {
-		return fmt.Errorf("Failed to fetch netflix organization members: %s", err.Error())
+		return statusCode, fmt.Errorf("Failed to fetch netflix organization members: %s", err.Error())
 	}
 
-	netflixOrgRepos, err := c.githubClient.GetNetflixRepos(c.ctx)
+	netflixOrgRepos, err, statusCode := c.githubClient.GetNetflixRepos(c.ctx)
 	if err != nil {
-		return fmt.Errorf("Failed to fetch netflix organization repositories: %s", err.Error())
+		return statusCode, fmt.Errorf("Failed to fetch netflix organization repositories: %s", err.Error())
 	}
 
-	netflixOrg, err := c.githubClient.GetNetflixOrg(c.ctx)
+	netflixOrg, err, statusCode := c.githubClient.GetNetflixOrg(c.ctx)
 	if err != nil {
-		return fmt.Errorf("Failed to fetch netflix organization: %s", err.Error())
+		return statusCode, fmt.Errorf("Failed to fetch netflix organization: %s", err.Error())
 	}
 
 	// compute views
@@ -112,10 +121,11 @@ func (c *cache) hydrateCache() error {
 	var bottomNetflixReposByStars []Tuple
 
 	for _, repo := range netflixOrgRepos {
-		bottomNetflixReposByForks = append(bottomNetflixReposByForks, Tuple{repo.Name, repo.ForksCount})
-		bottomNetflixReposByUpdateTime = append(bottomNetflixReposByUpdateTime, Tuple{repo.Name, repo.UpdatedAt.GetTime().Format(time.RFC3339)})
-		bottomNetflixReposByOpenIssues = append(bottomNetflixReposByOpenIssues, Tuple{repo.Name, repo.OpenIssuesCount})
-		bottomNetflixReposByStars = append(bottomNetflixReposByStars, Tuple{repo.Name, repo.StargazersCount})
+		repoName := fmt.Sprintf("Netflix/%s", *repo.Name)
+		bottomNetflixReposByForks = append(bottomNetflixReposByForks, Tuple{repoName, *repo.ForksCount})
+		bottomNetflixReposByUpdateTime = append(bottomNetflixReposByUpdateTime, Tuple{repoName, repo.UpdatedAt.GetTime().Format(time.RFC3339)})
+		bottomNetflixReposByOpenIssues = append(bottomNetflixReposByOpenIssues, Tuple{repoName, *repo.OpenIssuesCount})
+		bottomNetflixReposByStars = append(bottomNetflixReposByStars, Tuple{repoName, *repo.StargazersCount})
 	}
 
 	sortBottomViewByTimestamp(bottomNetflixReposByUpdateTime)
@@ -137,7 +147,7 @@ func (c *cache) hydrateCache() error {
 
 	c.lock.Unlock()
 
-	return nil
+	return http.StatusOK, nil
 }
 
 func sortBottomViewByCount(tuples []Tuple) {
@@ -159,7 +169,7 @@ func sortBottomViewByCount(tuples []Tuple) {
 func sortBottomViewByTimestamp(tuples []Tuple) {
 	sort.Slice(tuples, func(a int, b int) bool {
 		timeA, _ := time.Parse(time.RFC3339, tuples[a][1].(string))
-		timeB, _ := time.Parse(time.RFC3339, tuples[a][1].(string))
+		timeB, _ := time.Parse(time.RFC3339, tuples[b][1].(string))
 
 		return timeA.Before(timeB)
 	})
@@ -212,4 +222,8 @@ func (c *cache) GetBottomNetflixReposByStars() []Tuple {
 	c.lock.RLock()
 
 	return c.data.viewBottomNetflixReposByStars
+}
+
+func (c *cache) GetLastCacheSyncStatus() int {
+	return c.lastCacheSyncStatus
 }

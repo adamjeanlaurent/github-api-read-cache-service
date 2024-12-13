@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -49,6 +50,11 @@ func (handler *httpHandlers) GetCachedNetflixOrg() http.Handler {
 
 		w.Header().Set("Content-Type", "application/json")
 
+		if netflixOrg == nil {
+			http.Error(w, fmt.Sprintf("Previous data sync failed with status code: %d", handler.dataCache.GetLastCacheSyncStatus()), http.StatusInternalServerError)
+			return
+		}
+
 		if err := json.NewEncoder(w).Encode(netflixOrg); err != nil {
 			handler.logger.Error("Failed to serialize")
 			http.Error(w, "Failed to encode json", http.StatusInternalServerError)
@@ -62,6 +68,11 @@ func (handler *httpHandlers) GetCachedNetflixOrgMembers() http.Handler {
 
 		w.Header().Set("Content-Type", "application/json")
 
+		if len(netflixOrgMembers) == 0 {
+			http.Error(w, fmt.Sprintf("Previous data sync failed with status code: %d", handler.dataCache.GetLastCacheSyncStatus()), http.StatusInternalServerError)
+			return
+		}
+
 		if err := json.NewEncoder(w).Encode(netflixOrgMembers); err != nil {
 			handler.logger.Error("Failed to serialize")
 			http.Error(w, "Failed to encode json", http.StatusInternalServerError)
@@ -74,6 +85,11 @@ func (handler *httpHandlers) GetCachedNetflixOrgRepos() http.Handler {
 		netflixRepos := handler.dataCache.GetNetflixOrganizationRepos()
 
 		w.Header().Set("Content-Type", "application/json")
+
+		if len(netflixRepos) == 0 {
+			http.Error(w, fmt.Sprintf("Previous data sync failed with status code: %d", handler.dataCache.GetLastCacheSyncStatus()), http.StatusInternalServerError)
+			return
+		}
 
 		if err := json.NewEncoder(w).Encode(netflixRepos); err != nil {
 			handler.logger.Error("Failed to serialize")
@@ -112,6 +128,11 @@ func (handler *httpHandlers) GetCachedBottomNNetflixReposByStars() http.Handler 
 }
 
 func (handler *httpHandlers) getBottomNReposHelper(w http.ResponseWriter, r *http.Request, netflixRepos []cache.Tuple) {
+	if len(netflixRepos) == 0 {
+		http.Error(w, fmt.Sprintf("Previous data sync failed with status code: %d. Try again later.", handler.dataCache.GetLastCacheSyncStatus()), http.StatusInternalServerError)
+		return
+	}
+
 	n, err := strconv.Atoi(r.PathValue("n"))
 	if err != nil {
 		http.Error(w, "n must be an integer", http.StatusBadRequest)
