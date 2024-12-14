@@ -20,14 +20,14 @@ const (
 	PAGE_SIZE                    int    = 100
 )
 
-type JsonResponse map[string]interface{}
+type JsonObject map[string]interface{}
 
 // Client responsible for communicating with Github's REST API. docs: https://docs.github.com/en/rest/quickstart?apiVersion=2022-11-28
 type GithubClient interface {
 	ForwardRequest(w http.ResponseWriter, r *http.Request, logger *zap.Logger)
-	GetNetflixOrg(ctx context.Context) (JsonResponse, error, int)
-	GetNetflixOrgMembers(ctx context.Context) ([]JsonResponse, error, int)
-	GetNetflixRepos(ctx context.Context) ([]JsonResponse, error, int)
+	GetNetflixOrg(ctx context.Context) (JsonObject, error, int)
+	GetNetflixOrgMembers(ctx context.Context) ([]JsonObject, error, int)
+	GetNetflixRepos(ctx context.Context) ([]JsonObject, error, int)
 }
 
 type githubClient struct {
@@ -48,24 +48,24 @@ func NewGithubClient(cfg config.Configuration) GithubClient {
 }
 
 // Fetches Netflix Org data
-func (ghc *githubClient) GetNetflixOrg(ctx context.Context) (JsonResponse, error, int) {
+func (ghc *githubClient) GetNetflixOrg(ctx context.Context) (JsonObject, error, int) {
 	return ghc.sendGithubApiRequest(http.MethodGet, ENDPOINT_ORG_NETFLIX, ctx)
 }
 
 // Fetches Netflix Org Member data
-func (ghc *githubClient) GetNetflixOrgMembers(ctx context.Context) ([]JsonResponse, error, int) {
+func (ghc *githubClient) GetNetflixOrgMembers(ctx context.Context) ([]JsonObject, error, int) {
 	return ghc.sendPaginatedGithubApiRequests(http.MethodGet, ENDPOINT_ORG_NETFLIX_MEMBERS, ctx)
 }
 
 // Fetches Netflix Org repo data
-func (ghc *githubClient) GetNetflixRepos(ctx context.Context) ([]JsonResponse, error, int) {
+func (ghc *githubClient) GetNetflixRepos(ctx context.Context) ([]JsonObject, error, int) {
 	return ghc.sendPaginatedGithubApiRequests(http.MethodGet, ENDPOINT_ORG_NETFLIX_REPOS, ctx)
 }
 
 // Helper function to make paginated reponses and flatten the responses in a single list
-func (ghc *githubClient) sendPaginatedGithubApiRequests(method string, url string, ctx context.Context) ([]JsonResponse, error, int) {
+func (ghc *githubClient) sendPaginatedGithubApiRequests(method string, url string, ctx context.Context) ([]JsonObject, error, int) {
 	nextPage := 1
-	var flatResponse []JsonResponse
+	var flatResponse []JsonObject
 
 	for {
 		requestUrl := fmt.Sprintf("%s?per_page=%d&page=%d", url, PAGE_SIZE, nextPage)
@@ -95,7 +95,7 @@ func (ghc *githubClient) sendPaginatedGithubApiRequests(method string, url strin
 			return nil, fmt.Errorf("Failed to read response body: %v", err), http.StatusInternalServerError
 		}
 
-		var result []JsonResponse
+		var result []JsonObject
 		if err := json.Unmarshal(body, &result); err != nil {
 			return nil, fmt.Errorf("error unmarshalling JSON: %v", err), http.StatusInternalServerError
 		}
@@ -113,7 +113,7 @@ func (ghc *githubClient) sendPaginatedGithubApiRequests(method string, url strin
 }
 
 // Helper function to make a non-paginated request
-func (ghc *githubClient) sendGithubApiRequest(method string, url string, ctx context.Context) (JsonResponse, error, int) {
+func (ghc *githubClient) sendGithubApiRequest(method string, url string, ctx context.Context) (JsonObject, error, int) {
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create request: %v", err), http.StatusInternalServerError
@@ -139,7 +139,7 @@ func (ghc *githubClient) sendGithubApiRequest(method string, url string, ctx con
 		return nil, fmt.Errorf("Failed to read response body: %v", err), http.StatusInternalServerError
 	}
 
-	var result JsonResponse
+	var result JsonObject
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("error unmarshalling JSON: %v", err), http.StatusInternalServerError
 	}

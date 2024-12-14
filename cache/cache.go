@@ -15,9 +15,9 @@ import (
 
 type Cache interface {
 	StartSyncLoop()
-	GetNetflixOrganization() githubclient.JsonResponse
-	GetNetflixOrganizationMembers() []githubclient.JsonResponse
-	GetNetflixOrganizationRepos() []githubclient.JsonResponse
+	GetNetflixOrganization() githubclient.JsonObject
+	GetNetflixOrganizationMembers() []githubclient.JsonObject
+	GetNetflixOrganizationRepos() []githubclient.JsonObject
 	GetBottomNetflixReposByForks() []Tuple
 	GetBottomNetflixReposByUpdateTime() []Tuple
 	GetBottomNetflixReposByOpenIssues() []Tuple
@@ -29,9 +29,9 @@ type Tuple = [2]interface{}
 
 // Stores In-memory cache of netflix github data, re-hydrates the cache on a fixed interval
 type cacheData struct {
-	netflixOrganization                githubclient.JsonResponse
-	netflixOrganizationMembers         []githubclient.JsonResponse
-	netflixOrganizationRepos           []githubclient.JsonResponse
+	netflixOrganization                githubclient.JsonObject
+	netflixOrganizationMembers         []githubclient.JsonObject
+	netflixOrganizationRepos           []githubclient.JsonObject
 	viewBottomNetflixReposByForks      []Tuple
 	viewBottomNetflixReposByUpdateTime []Tuple
 	viewBottomNetflixReposByOpenIssues []Tuple
@@ -50,7 +50,7 @@ type cache struct {
 
 // Get New Cache
 func NewCache(cfg config.Configuration, client githubclient.GithubClient, context context.Context, logger *zap.Logger) Cache {
-	return &cache{ttl: time.Duration(cfg.GetCacheTTL()), githubClient: client, ctx: context, logger: logger, lastCacheSyncStatus: http.StatusOK}
+	return &cache{ttl: time.Duration(cfg.GetCacheTTL()), githubClient: client, ctx: context, logger: logger, lastCacheSyncStatus: http.StatusOK, data: &cacheData{}}
 }
 
 // Starts thread that on a fixed interval, makes requests to the GitHub API, computes views, and updates the cache
@@ -206,7 +206,7 @@ func sortBottomViewByTimestamp(tuples []Tuple) {
 }
 
 // Get Netflix Organization from Cache
-func (c *cache) GetNetflixOrganization() githubclient.JsonResponse {
+func (c *cache) GetNetflixOrganization() githubclient.JsonObject {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
 
@@ -214,7 +214,7 @@ func (c *cache) GetNetflixOrganization() githubclient.JsonResponse {
 }
 
 // Get Netflix Organization Members from Cache
-func (c *cache) GetNetflixOrganizationMembers() []githubclient.JsonResponse {
+func (c *cache) GetNetflixOrganizationMembers() []githubclient.JsonObject {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
 
@@ -222,7 +222,7 @@ func (c *cache) GetNetflixOrganizationMembers() []githubclient.JsonResponse {
 }
 
 // Get Netflix Organization Repos from Cache
-func (c *cache) GetNetflixOrganizationRepos() []githubclient.JsonResponse {
+func (c *cache) GetNetflixOrganizationRepos() []githubclient.JsonObject {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
 
