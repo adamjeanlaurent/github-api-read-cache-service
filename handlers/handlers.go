@@ -228,6 +228,7 @@ func (handler *httpHandlers) getBottomNReposHelper(w http.ResponseWriter, r *htt
 	}
 }
 
+// Force Hydrates the cache, to be used on a cache miss
 func (handler *httpHandlers) forceCacheUpdateOnCacheMiss() (int, error) {
 	handler.logger.Warn("cache miss, forcing cache re-sync", zap.Int("Last sync status", handler.dataCache.GetLastCacheSyncStatus()))
 
@@ -240,6 +241,7 @@ func (handler *httpHandlers) forceCacheUpdateOnCacheMiss() (int, error) {
 	return status, err
 }
 
+// Proxies Requests straight to GitHub API.
 func (handler *httpHandlers) ProxyRequestToGithubAPI() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler.githubClient.ForwardRequest(w, r)

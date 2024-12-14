@@ -224,6 +224,7 @@ func (ghc *githubClient) ForwardRequest(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// determines if the current request should be instantly failed due to backoff, ends backoff if the backoff time period is over
 func (ghc *githubClient) shouldBackoff() bool {
 	inBackoff := false
 	var backoffResetTime time.Time
@@ -255,6 +256,8 @@ func (ghc *githubClient) shouldBackoff() bool {
 	}
 }
 
+// determines it request was rate limited by github, and if so enters backoff for the specified time period
+// https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28
 func (ghc *githubClient) updateBackoffState(responseHeaders http.Header) {
 	// Extract headers
 	rateLimitRemaining := responseHeaders.Get("x-ratelimit-remaining")
