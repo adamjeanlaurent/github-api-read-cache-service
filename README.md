@@ -52,6 +52,12 @@ When the GitHub API fails a request because we've exceeded our rate limit, the s
 
 The GitHub API may entierly block your IP from making requests or increase the rate limit period if you keep sending requests that are rate limited, so having backoff will keep the service avaible longer, and be more resilient.
 
-## Intial Cache Fetch Retries
+## Forced Cache Sync on Cache Miss
 
-## Forced Cache Sync
+see [httpHandlers.forceCacheUpdateOnCacheMiss()](https://github.com/adamjeanlaurent/github-api-read-cache-service/blob/main/handlers/handlers.go#L231)
+
+The server pre-warms the cache during start up, however, if all those requests fail (it retires 5 times), then all later requests for cached data would fail until the next successful cache sync loop iteration.
+
+To combat this, if a request comes in for cached data, and for some reason, the cache it empty, the data will be force synced and stored in the cache.
+
+This stops there from being downtime for cached requests in the time between failed cache sync loop updates. Lowering downtimes for users.
