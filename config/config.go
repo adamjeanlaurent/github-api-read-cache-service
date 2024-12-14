@@ -21,22 +21,27 @@ type configuration struct {
 	cacheTTL     time.Duration
 }
 
+// Retrieve Github API Key from config.
 func (config *configuration) GetGitHubApiKey() string {
 	return config.gitHubApiKey
 }
 
+// Retrieve Port from config.
 func (config *configuration) GetPort() int {
 	return config.port
 }
 
+// Retrieve CacheTTL from config.
 func (config *configuration) GetCacheTTL() time.Duration {
 	return config.cacheTTL
 }
 
+// Parse and validate configuration
 func NewConfiguration(logger *zap.Logger) (Configuration, error) {
 	port := flag.Int("port", 0, "Port for server to listen on")
 	flag.Parse()
 
+	// github api key is optional
 	githubApiKey := os.Getenv("GITHUB_API_TOKEN")
 	if len(githubApiKey) == 0 {
 		logger.Warn("No GITHUB_API_TOKEN envirnment variable found, may be subject to rate limits")

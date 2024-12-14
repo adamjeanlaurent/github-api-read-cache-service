@@ -24,6 +24,7 @@ type HttpHandlers interface {
 	ProxyRequestToGithubAPI() http.Handler
 }
 
+// Implements the HTTP handlers for service REST API
 type httpHandlers struct {
 	cfg          config.Configuration
 	dataCache    cache.Cache
@@ -31,6 +32,7 @@ type httpHandlers struct {
 	githubClient githubclient.GithubClient
 }
 
+// Retrieve Newly Created HttpHandlers
 func NewHttpHandlers(cfg config.Configuration, dataCache cache.Cache, logger *zap.Logger, githubClient githubclient.GithubClient) HttpHandlers {
 	return &httpHandlers{
 		cfg:          cfg,
@@ -40,12 +42,14 @@ func NewHttpHandlers(cfg config.Configuration, dataCache cache.Cache, logger *za
 	}
 }
 
+// Responds with Health Status of server
 func (handler *httpHandlers) GetHealth() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 }
 
+// Responds with cached Netflix Org Data
 func (handler *httpHandlers) GetCachedNetflixOrg() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixOrg := handler.dataCache.GetNetflixOrganization()
@@ -64,6 +68,7 @@ func (handler *httpHandlers) GetCachedNetflixOrg() http.Handler {
 	})
 }
 
+// Responds with cached list of Netflix Org Members
 func (handler *httpHandlers) GetCachedNetflixOrgMembers() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixOrgMembers := handler.dataCache.GetNetflixOrganizationMembers()
@@ -82,6 +87,7 @@ func (handler *httpHandlers) GetCachedNetflixOrgMembers() http.Handler {
 	})
 }
 
+// Responds with cached list of  Netflix Org Repos
 func (handler *httpHandlers) GetCachedNetflixOrgRepos() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixRepos := handler.dataCache.GetNetflixOrganizationRepos()
@@ -100,6 +106,7 @@ func (handler *httpHandlers) GetCachedNetflixOrgRepos() http.Handler {
 	})
 }
 
+// Responds with cached Bottom N Netflix Repos By Forks
 func (handler *httpHandlers) GetCachedBottomNNetflixReposByForks() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixRepos := handler.dataCache.GetBottomNetflixReposByForks()
@@ -108,6 +115,7 @@ func (handler *httpHandlers) GetCachedBottomNNetflixReposByForks() http.Handler 
 	})
 }
 
+// Responds with cached Bottom N Netflix Repos By Last Updated Time
 func (handler *httpHandlers) GetCachedBottomNNetflixReposByLastUpdatedTime() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixRepos := handler.dataCache.GetBottomNetflixReposByUpdateTime()
@@ -115,6 +123,7 @@ func (handler *httpHandlers) GetCachedBottomNNetflixReposByLastUpdatedTime() htt
 	})
 }
 
+// Responds with cached Bottom N Netflix Repos By Open Issues
 func (handler *httpHandlers) GetCachedBottomNNetflixReposByOpenIssues() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixRepos := handler.dataCache.GetBottomNetflixReposByOpenIssues()
@@ -122,6 +131,7 @@ func (handler *httpHandlers) GetCachedBottomNNetflixReposByOpenIssues() http.Han
 	})
 }
 
+// Responds with cached Bottom N Netflix Repos By Stars
 func (handler *httpHandlers) GetCachedBottomNNetflixReposByStars() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixRepos := handler.dataCache.GetBottomNetflixReposByStars()
@@ -129,6 +139,7 @@ func (handler *httpHandlers) GetCachedBottomNNetflixReposByStars() http.Handler 
 	})
 }
 
+// Helper to trim cached bottom view to N length
 func (handler *httpHandlers) getBottomNReposHelper(w http.ResponseWriter, r *http.Request, netflixRepos []cache.Tuple) {
 	if len(netflixRepos) == 0 {
 		http.Error(w, fmt.Sprintf("Previous data sync failed with status code: %d. Try again later.", handler.dataCache.GetLastCacheSyncStatus()), http.StatusInternalServerError)

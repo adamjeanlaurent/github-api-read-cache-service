@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// Spawns HTTP Server, and Cache Sync Loop
 func StartServer(logger *zap.Logger) error {
 	cfg, err := config.NewConfiguration(logger)
 
@@ -22,33 +23,23 @@ func StartServer(logger *zap.Logger) error {
 		return fmt.Errorf("Invalid Configuration: %w", err)
 	}
 
-	port := fmt.Sprintf(":%d", cfg.GetPort())
-
+	// Cache Sync Loop and HTTP Server should respect system interupts (e.g CTRL-C)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	// start cache syncer
 	githubClient := githubclient.NewGithubClient(cfg)
 	dataCache := cache.NewCache(cfg, githubClient, ctx, logger)
+
+	// Start sync loop goroutine for cache
 	dataCache.StartSyncLoop()
 
-	mux := http.NewServeMux()
-
 	httpHandlers := handlers.NewHttpHandlers(cfg, dataCache, logger, githubClient)
+	mux := setupApiRoutes(httpHandlers)
 
-	mux.Handle("GET /healthcheck", httpHandlers.GetHealth())
-	mux.Handle("GET /orgs/Netflix", httpHandlers.GetCachedNetflixOrg())
-	mux.Handle("GET /orgs/Netflix/members", httpHandlers.GetCachedNetflixOrgMembers())
-	mux.Handle("GET /orgs/Netflix/repos", httpHandlers.GetCachedNetflixOrgRepos())
-	mux.Handle("GET /view/bottom/{n}/forks", httpHandlers.GetCachedBottomNNetflixReposByForks())
-	mux.Handle("GET /view/bottom/{n}/last_updated", httpHandlers.GetCachedBottomNNetflixReposByLastUpdatedTime())
-	mux.Handle("GET /view/bottom/{n}/open_issues", httpHandlers.GetCachedBottomNNetflixReposByOpenIssues())
-	mux.Handle("GET /view/bottom/{n}/stars", httpHandlers.GetCachedBottomNNetflixReposByStars())
-	mux.Handle("/", httpHandlers.ProxyRequestToGithubAPI())
-
+	port := fmt.Sprintf(":%d", cfg.GetPort())
 	srv := &http.Server{Addr: port, Handler: mux}
 
-	// gracefully shutdown server on system interrupts
+	// Graceful server shutdown
 	go func() {
 		<-ctx.Done()
 		logger.Info("Shutting down server...")
@@ -61,12 +52,31 @@ func StartServer(logger *zap.Logger) error {
 		}
 	}()
 
-	// start server
 	logger.Info("Server is ready to handle requests", zap.String("port", srv.Addr))
 
+	// start server
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Error("Could not start server ", zap.Error(err))
 	}
 
 	return nil
+}
+
+// Sets up routes for REST API
+func setupApiRoutes(httpHandlers handlers.HttpHandlers) *http.ServeMux {
+	mux := http.NewServeMux()
+
+	mux.Handle("GET /healthcheck", httpHandlers.GetHealth())
+	mux.Handle("GET /orgs/Netflix", httpHandlers.GetCachedNetflixOrg())
+	mux.Handle("GET /orgs/Netflix/members", httpHandlers.GetCachedNetflixOrgMembers())
+	mux.Handle("GET /orgs/Netflix/repos", httpHandlers.GetCachedNetflixOrgRepos())
+	mux.Handle("GET /view/bottom/{n}/forks", httpHandlers.GetCachedBottomNNetflixReposByForks())
+	mux.Handle("GET /view/bottom/{n}/last_updated", httpHandlers.GetCachedBottomNNetflixReposByLastUpdatedTime())
+	mux.Handle("GET /view/bottom/{n}/open_issues", httpHandlers.GetCachedBottomNNetflixReposByOpenIssues())
+	mux.Handle("GET /view/bottom/{n}/stars", httpHandlers.GetCachedBottomNNetflixReposByStars())
+
+	// catch all, proxies request to github API
+	mux.Handle("/", httpHandlers.ProxyRequestToGithubAPI())
+
+	return mux
 }

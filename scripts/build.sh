@@ -1,5 +1,6 @@
 mkdir -p /bin
 
+# build service for different CPU and OS flavors
 echo "Building Linux AMD64"
 GOOS=linux GOARCH=amd64 go build -o bin/server-linux-amd
 

@@ -15,13 +15,14 @@ import (
 const (
 	GITHUB_API_URL               string = "https://api.github.com"
 	ENDPOINT_ORG_NETFLIX         string = GITHUB_API_URL + "/orgs/Netflix"
-	ENDPOINT_ORG_NETFLIX_MEMBERS string = GITHUB_API_URL + "/orgs/Netflix/members"
-	ENDPOINT_ORG_NETFLIX_REPOS   string = GITHUB_API_URL + "/orgs/Netflix/repos"
+	ENDPOINT_ORG_NETFLIX_MEMBERS string = GITHUB_API_URL + "/orgs/Netflix/public_members"    // only get public repository members
+	ENDPOINT_ORG_NETFLIX_REPOS   string = GITHUB_API_URL + "/orgs/Netflix/repos?type=public" // only get public repositories
 	PAGE_SIZE                    int    = 100
 )
 
 type JsonResponse map[string]interface{}
 
+// Client responsible for communicating with Github's REST API. docs: https://docs.github.com/en/rest/quickstart?apiVersion=2022-11-28
 type GithubClient interface {
 	ForwardRequest(w http.ResponseWriter, r *http.Request, logger *zap.Logger)
 	GetNetflixOrg(ctx context.Context) (JsonResponse, error, int)
@@ -34,6 +35,7 @@ type githubClient struct {
 	apiKey     string
 }
 
+// Get newly created GitHubClient
 func NewGithubClient(cfg config.Configuration) GithubClient {
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -45,19 +47,22 @@ func NewGithubClient(cfg config.Configuration) GithubClient {
 	}
 }
 
+// Fetches Netflix Org data
 func (ghc *githubClient) GetNetflixOrg(ctx context.Context) (JsonResponse, error, int) {
 	return ghc.sendGithubApiRequest(http.MethodGet, ENDPOINT_ORG_NETFLIX, ctx)
-
 }
 
+// Fetches Netflix Org Member data
 func (ghc *githubClient) GetNetflixOrgMembers(ctx context.Context) ([]JsonResponse, error, int) {
 	return ghc.sendPaginatedGithubApiRequests(http.MethodGet, ENDPOINT_ORG_NETFLIX_MEMBERS, ctx)
 }
 
+// Fetches Netflix Org repo data
 func (ghc *githubClient) GetNetflixRepos(ctx context.Context) ([]JsonResponse, error, int) {
 	return ghc.sendPaginatedGithubApiRequests(http.MethodGet, ENDPOINT_ORG_NETFLIX_REPOS, ctx)
 }
 
+// Helper function to make paginated reponses and flatten the responses in a single list
 func (ghc *githubClient) sendPaginatedGithubApiRequests(method string, url string, ctx context.Context) ([]JsonResponse, error, int) {
 	nextPage := 1
 	var flatResponse []JsonResponse
@@ -107,6 +112,7 @@ func (ghc *githubClient) sendPaginatedGithubApiRequests(method string, url strin
 	return flatResponse, nil, http.StatusOK
 }
 
+// Helper function to make a non-paginated request
 func (ghc *githubClient) sendGithubApiRequest(method string, url string, ctx context.Context) (JsonResponse, error, int) {
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
@@ -141,6 +147,7 @@ func (ghc *githubClient) sendGithubApiRequest(method string, url string, ctx con
 	return result, nil, resp.StatusCode
 }
 
+// Proxies an incoming http request to the GitHub API
 func (ghc *githubClient) ForwardRequest(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	targetURL := GITHUB_API_URL + r.URL.Path
 

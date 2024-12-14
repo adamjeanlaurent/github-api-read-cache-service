@@ -27,6 +27,7 @@ type Cache interface {
 
 type Tuple = [2]interface{}
 
+// Stores In-memory cache of netflix github data, re-hydrates the cache on a fixed interval
 type cacheData struct {
 	netflixOrganization                githubclient.JsonResponse
 	netflixOrganizationMembers         []githubclient.JsonResponse
@@ -47,10 +48,12 @@ type cache struct {
 	lastCacheSyncStatus int
 }
 
+// Get New Cache
 func NewCache(cfg config.Configuration, client githubclient.GithubClient, context context.Context, logger *zap.Logger) Cache {
 	return &cache{ttl: time.Duration(cfg.GetCacheTTL()), githubClient: client, ctx: context, logger: logger, lastCacheSyncStatus: http.StatusOK}
 }
 
+// Starts thread that on a fixed interval, makes requests to the GitHub API, computes views, and updates the cache
 func (c *cache) StartSyncLoop() {
 	ticker := time.NewTicker(c.ttl)
 
@@ -96,6 +99,7 @@ func (c *cache) StartSyncLoop() {
 	}()
 }
 
+// Makes requests to the GitHub API, computes views, and updates the cache
 func (c *cache) hydrateCache() (int, error) {
 	// fetch new data
 	netflixOrgMembers, err, statusCode := c.githubClient.GetNetflixOrgMembers(c.ctx)
@@ -174,6 +178,7 @@ func (c *cache) hydrateCache() (int, error) {
 	return http.StatusOK, nil
 }
 
+// Sorts list of [name: string, count: float] tuples by count ascending, when count values are the same, uses the name value alphabetically
 func sortBottomViewByCount(tuples []Tuple) {
 	sort.Slice(tuples, func(a int, b int) bool {
 		countA := tuples[a][1].(float64)
@@ -190,6 +195,7 @@ func sortBottomViewByCount(tuples []Tuple) {
 	})
 }
 
+// Sorts list of [name: string, timestamp: string] tuples by timestamp value ascending
 func sortBottomViewByTimestamp(tuples []Tuple) {
 	sort.Slice(tuples, func(a int, b int) bool {
 		timeA, _ := time.Parse(time.RFC3339, tuples[a][1].(string))
@@ -199,6 +205,7 @@ func sortBottomViewByTimestamp(tuples []Tuple) {
 	})
 }
 
+// Get Netflix Organization from Cache
 func (c *cache) GetNetflixOrganization() githubclient.JsonResponse {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
@@ -206,6 +213,7 @@ func (c *cache) GetNetflixOrganization() githubclient.JsonResponse {
 	return c.data.netflixOrganization
 }
 
+// Get Netflix Organization Members from Cache
 func (c *cache) GetNetflixOrganizationMembers() []githubclient.JsonResponse {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
@@ -213,6 +221,7 @@ func (c *cache) GetNetflixOrganizationMembers() []githubclient.JsonResponse {
 	return c.data.netflixOrganizationMembers
 }
 
+// Get Netflix Organization Repos from Cache
 func (c *cache) GetNetflixOrganizationRepos() []githubclient.JsonResponse {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
@@ -220,6 +229,7 @@ func (c *cache) GetNetflixOrganizationRepos() []githubclient.JsonResponse {
 	return c.data.netflixOrganizationRepos
 }
 
+// Get Bottom Netflix Organization Repos By Forks from Cache
 func (c *cache) GetBottomNetflixReposByForks() []Tuple {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
@@ -227,6 +237,7 @@ func (c *cache) GetBottomNetflixReposByForks() []Tuple {
 	return c.data.viewBottomNetflixReposByForks
 }
 
+// Get Bottom Netflix Organization Repos By Last Updated Time from Cache
 func (c *cache) GetBottomNetflixReposByUpdateTime() []Tuple {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
@@ -234,6 +245,7 @@ func (c *cache) GetBottomNetflixReposByUpdateTime() []Tuple {
 	return c.data.viewBottomNetflixReposByUpdateTime
 }
 
+// Get Bottom Netflix Organization Repos By Open Issues from Cache
 func (c *cache) GetBottomNetflixReposByOpenIssues() []Tuple {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
@@ -241,6 +253,7 @@ func (c *cache) GetBottomNetflixReposByOpenIssues() []Tuple {
 	return c.data.viewBottomNetflixReposByOpenIssues
 }
 
+// Get Bottom Netflix Organization Repos By Stars from Cache
 func (c *cache) GetBottomNetflixReposByStars() []Tuple {
 	defer c.lock.RUnlock()
 	c.lock.RLock()
@@ -248,6 +261,7 @@ func (c *cache) GetBottomNetflixReposByStars() []Tuple {
 	return c.data.viewBottomNetflixReposByStars
 }
 
+// Get the HTTP status of the last attempted cache sync
 func (c *cache) GetLastCacheSyncStatus() int {
 	return c.lastCacheSyncStatus
 }
