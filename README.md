@@ -22,6 +22,9 @@ ex. ```GITHUB_API_TOKEN=xyz123 ./bin/server/server-mac-arm --port=7101```
 
 # Design Decisions
 
+![image](https://github.com/user-attachments/assets/a999bf1f-76a7-4d61-b055-33fd706486c7)
+
+
 ## Dedicated Thread for Cache Warming 
 See [cache.StartSyncLoop()](https://github.com/adamjeanlaurent/github-api-read-cache-service/blob/main/cache/cache.go#L58).
 
