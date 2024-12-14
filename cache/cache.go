@@ -23,6 +23,7 @@ type Cache interface {
 	GetBottomNetflixReposByOpenIssues() []Tuple
 	GetBottomNetflixReposByStars() []Tuple
 	GetLastCacheSyncStatus() int
+	HydrateCache() (int, error)
 }
 
 type Tuple = [2]interface{}
@@ -62,7 +63,7 @@ func (c *cache) StartSyncLoop() {
 	for retriesLeft > 0 {
 		c.logger.Info("Hydrating cache for server startup", zap.Int("attempts left", retriesLeft))
 
-		statusCode, err := c.hydrateCache()
+		statusCode, err := c.HydrateCache()
 		c.lastCacheSyncStatus = statusCode
 
 		if err == nil {
@@ -82,7 +83,7 @@ func (c *cache) StartSyncLoop() {
 			select {
 			case <-ticker.C:
 				c.logger.Info("Attempting to re-Hydrate cache")
-				statusCode, err := c.hydrateCache()
+				statusCode, err := c.HydrateCache()
 
 				if err != nil {
 					c.logger.Error("Failed to hydrate cache", zap.Error(err), zap.Int("Http status code", statusCode))
@@ -100,7 +101,7 @@ func (c *cache) StartSyncLoop() {
 }
 
 // Makes requests to the GitHub API, computes views, and updates the cache
-func (c *cache) hydrateCache() (int, error) {
+func (c *cache) HydrateCache() (int, error) {
 	// fetch new data
 	netflixOrgMembers, err, statusCode := c.githubClient.GetNetflixOrgMembers(c.ctx)
 	if err != nil {

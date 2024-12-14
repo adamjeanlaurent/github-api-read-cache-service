@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -57,8 +56,14 @@ func (handler *httpHandlers) GetCachedNetflixOrg() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 
 		if netflixOrg == nil {
-			http.Error(w, fmt.Sprintf("Previous data sync failed with status code: %d", handler.dataCache.GetLastCacheSyncStatus()), http.StatusInternalServerError)
-			return
+			status, err := handler.forceCacheUpdateOnCacheMiss()
+
+			if err != nil {
+				http.Error(w, "Error: Cache empty", status)
+				return
+			}
+
+			netflixOrg = handler.dataCache.GetNetflixOrganization()
 		}
 
 		if err := json.NewEncoder(w).Encode(netflixOrg); err != nil {
@@ -76,8 +81,14 @@ func (handler *httpHandlers) GetCachedNetflixOrgMembers() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 
 		if len(netflixOrgMembers) == 0 {
-			http.Error(w, fmt.Sprintf("Previous data sync failed with status code: %d", handler.dataCache.GetLastCacheSyncStatus()), http.StatusInternalServerError)
-			return
+			status, err := handler.forceCacheUpdateOnCacheMiss()
+
+			if err != nil {
+				http.Error(w, "Error: Cache empty", status)
+				return
+			}
+
+			netflixOrgMembers = handler.dataCache.GetNetflixOrganizationMembers()
 		}
 
 		if err := json.NewEncoder(w).Encode(netflixOrgMembers); err != nil {
@@ -95,8 +106,14 @@ func (handler *httpHandlers) GetCachedNetflixOrgRepos() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 
 		if len(netflixRepos) == 0 {
-			http.Error(w, fmt.Sprintf("Previous data sync failed with status code: %d", handler.dataCache.GetLastCacheSyncStatus()), http.StatusInternalServerError)
-			return
+			status, err := handler.forceCacheUpdateOnCacheMiss()
+
+			if err != nil {
+				http.Error(w, "Error: Cache empty", status)
+				return
+			}
+
+			netflixRepos = handler.dataCache.GetNetflixOrganizationRepos()
 		}
 
 		if err := json.NewEncoder(w).Encode(netflixRepos); err != nil {
@@ -111,6 +128,17 @@ func (handler *httpHandlers) GetCachedBottomNNetflixReposByForks() http.Handler 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixRepos := handler.dataCache.GetBottomNetflixReposByForks()
 
+		if len(netflixRepos) == 0 {
+			status, err := handler.forceCacheUpdateOnCacheMiss()
+
+			if err != nil {
+				http.Error(w, "Error: Cache empty", status)
+				return
+			}
+
+			netflixRepos = handler.dataCache.GetBottomNetflixReposByForks()
+		}
+
 		handler.getBottomNReposHelper(w, r, netflixRepos)
 	})
 }
@@ -119,6 +147,18 @@ func (handler *httpHandlers) GetCachedBottomNNetflixReposByForks() http.Handler 
 func (handler *httpHandlers) GetCachedBottomNNetflixReposByLastUpdatedTime() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixRepos := handler.dataCache.GetBottomNetflixReposByUpdateTime()
+
+		if len(netflixRepos) == 0 {
+			status, err := handler.forceCacheUpdateOnCacheMiss()
+
+			if err != nil {
+				http.Error(w, "Error: Cache empty", status)
+				return
+			}
+
+			netflixRepos = handler.dataCache.GetBottomNetflixReposByUpdateTime()
+		}
+
 		handler.getBottomNReposHelper(w, r, netflixRepos)
 	})
 }
@@ -127,6 +167,18 @@ func (handler *httpHandlers) GetCachedBottomNNetflixReposByLastUpdatedTime() htt
 func (handler *httpHandlers) GetCachedBottomNNetflixReposByOpenIssues() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixRepos := handler.dataCache.GetBottomNetflixReposByOpenIssues()
+
+		if len(netflixRepos) == 0 {
+			status, err := handler.forceCacheUpdateOnCacheMiss()
+
+			if err != nil {
+				http.Error(w, "Error: Cache empty", status)
+				return
+			}
+
+			netflixRepos = handler.dataCache.GetBottomNetflixReposByOpenIssues()
+		}
+
 		handler.getBottomNReposHelper(w, r, netflixRepos)
 	})
 }
@@ -135,17 +187,24 @@ func (handler *httpHandlers) GetCachedBottomNNetflixReposByOpenIssues() http.Han
 func (handler *httpHandlers) GetCachedBottomNNetflixReposByStars() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		netflixRepos := handler.dataCache.GetBottomNetflixReposByStars()
+
+		if len(netflixRepos) == 0 {
+			status, err := handler.forceCacheUpdateOnCacheMiss()
+
+			if err != nil {
+				http.Error(w, "Error: Cache empty", status)
+				return
+			}
+
+			netflixRepos = handler.dataCache.GetBottomNetflixReposByStars()
+		}
+
 		handler.getBottomNReposHelper(w, r, netflixRepos)
 	})
 }
 
 // Helper to trim cached bottom view to N length
 func (handler *httpHandlers) getBottomNReposHelper(w http.ResponseWriter, r *http.Request, netflixRepos []cache.Tuple) {
-	if len(netflixRepos) == 0 {
-		http.Error(w, fmt.Sprintf("Previous data sync failed with status code: %d. Try again later.", handler.dataCache.GetLastCacheSyncStatus()), http.StatusInternalServerError)
-		return
-	}
-
 	n, err := strconv.Atoi(r.PathValue("n"))
 	if err != nil {
 		http.Error(w, "n must be an integer", http.StatusBadRequest)
@@ -167,6 +226,18 @@ func (handler *httpHandlers) getBottomNReposHelper(w http.ResponseWriter, r *htt
 		handler.logger.Error("Failed to serialize")
 		http.Error(w, "Failed to encode json", http.StatusInternalServerError)
 	}
+}
+
+func (handler *httpHandlers) forceCacheUpdateOnCacheMiss() (int, error) {
+	handler.logger.Warn("cache miss, forcing cache re-sync", zap.Int("Last sync status", handler.dataCache.GetLastCacheSyncStatus()))
+
+	status, err := handler.dataCache.HydrateCache()
+
+	if err != nil {
+		handler.logger.Error("Force cache sync failed", zap.Int("status", status))
+	}
+
+	return status, err
 }
 
 func (handler *httpHandlers) ProxyRequestToGithubAPI() http.Handler {
