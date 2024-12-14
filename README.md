@@ -12,9 +12,9 @@ Run the build script to build the service in all flavors.
 ```./scripts/build.sh```
 
 ### Running
-After the build is finished the follow binaries are built. ```(server-linux-amd, server-linux-arm, server-mac-amd, server-mac-arm, server-windows-amd.exe, server-windows-arm.exe)```
+After the build is finished the following binaries are built. ```(server-linux-amd, server-linux-arm, server-mac-amd, server-mac-arm, server-windows-amd.exe, server-windows-arm.exe)```
 
-Run the appropriate binary, port is a required option. Optionally set an environment variable GITHUB_API_TOKEN with a github API token.
+Run the appropriate binary, port (the port the server runs on) is a required argument. Optionally set an environment variable GITHUB_API_TOKEN with a github API token.
 
 ex. ```./bin/server-mac-arm --port=7101```
 
