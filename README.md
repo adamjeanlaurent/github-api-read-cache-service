@@ -59,7 +59,7 @@ The GitHub API may entierly block your IP from making requests or increase the r
 
 see [httpHandlers.forceCacheUpdateOnCacheMiss()](https://github.com/adamjeanlaurent/github-api-read-cache-service/blob/main/handlers/handlers.go#L231)
 
-The server pre-warms the cache during start up, however, if all those requests fail (it retires 5 times), then all later requests for cached data would fail until the next successful cache sync loop iteration.
+The server pre-warms the cache during start up, however, if all those requests fail (it retires 5 times), then all later requests for cached data would fail until the next successful cache sync loop iteration in 10 minutres. That would mean 10 minutes of downtime for some routes.
 
 To combat this, if a request comes in for cached data, and for some reason, the cache it empty, the data will be force synced and stored in the cache.
 
