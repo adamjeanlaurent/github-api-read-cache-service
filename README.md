@@ -36,6 +36,22 @@ I chose cache warming for 2 reasons.
 
 ## Pre-Computed Bottom Views
 
+See [cache.go](https://github.com/adamjeanlaurent/github-api-read-cache-service/blob/main/cache/cache.go#L160).
+
+The sorting of the repos by issues / forks / update time / stars is done only when the cache is being warmed. There's no need to sort these views on every request we get. When a request comes in for the bottom N of a view, we can just return the first N values in the corresponding sorted array.
+
+This makes the requesting of bottom N views very quick, and it's just a memory read with no additional processing, 
+
 ## Backoff 
 
+See [githubClient.updateBackoffState()](https://github.com/adamjeanlaurent/github-api-read-cache-service/blob/main/github-client/github-client.go#L258).
+
+The GitHub API has rate limits https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28.
+
+When the GitHub API fails a request because we've exceeded our rate limit, the service enters 'backoff'. The service will not attempt to make any requests to GitHub until the rate limits resets. All cached requests to the service will continue to work.
+
+The GitHub API may entierly block your IP from making requests or increase the rate limit period if you keep sending requests that are rate limited, so having backoff will keep the service avaible longer, and be more resilient.
+
 ## Intial Cache Fetch Retries
+
+## Forced Cache Sync
