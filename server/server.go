@@ -27,7 +27,7 @@ func StartServer(logger *zap.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	githubClient := githubclient.NewGithubClient(cfg)
+	githubClient := githubclient.NewGithubClient(cfg, logger)
 	dataCache := cache.NewCache(cfg, githubClient, ctx, logger)
 
 	// Start sync loop goroutine for cache

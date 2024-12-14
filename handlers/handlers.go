@@ -171,6 +171,6 @@ func (handler *httpHandlers) getBottomNReposHelper(w http.ResponseWriter, r *htt
 
 func (handler *httpHandlers) ProxyRequestToGithubAPI() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handler.githubClient.ForwardRequest(w, r, handler.logger)
+		handler.githubClient.ForwardRequest(w, r)
 	})
 }
