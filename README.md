@@ -1,4 +1,4 @@
-# API Read Cache Service
+# Netflix Github API Read Cache Service
 
 ## Running Locally
 
