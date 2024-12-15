@@ -1,3 +1,5 @@
+go mod tidy
+
 mkdir -p /bin
 
 # build service for different CPU and OS flavors
