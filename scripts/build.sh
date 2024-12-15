@@ -13,7 +13,7 @@ echo "Building Windows AMD64"
 GOOS=windows GOARCH=amd64 go build -o bin/server-windows-amd.exe
 
 echo "Building Windows ARM64"
-GOOS=windows GOARCH=amd64 go build -o bin/server-windows-arm.exe
+GOOS=windows GOARCH=arm64 go build -o bin/server-windows-arm.exe
 
 echo "Building Mac AMD64"
 GOOS=darwin GOARCH=amd64 go build -o bin/server-mac-amd
