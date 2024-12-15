@@ -64,7 +64,7 @@ The GitHub API may entierly block your IP from making requests or increase the r
 
 See [cache.go](https://github.com/adamjeanlaurent/github-api-read-cache-service/blob/main/cache/cache.go#L160).
 
-The sorting of the repos by issues / forks / update time / stars is done only when the cache is being warmed. There's no need to sort these views on every request we get. When a request comes in for the bottom N of a view, we can just return the first N values in the corresponding sorted array.
+The sorting of the repos by issues / forks / update time / stars is done only when the cache is being warmed. There's no need to sort these views on every request we get. When a request comes in for the bottom N of a view, we can just return the last N values in the corresponding sorted array.
 
 This makes the requesting of bottom N views very quick, and it's just a memory read with no additional processing, 
 
