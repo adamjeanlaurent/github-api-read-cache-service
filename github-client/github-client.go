@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	netUrl "net/url"
+
 	"github.com/adamjeanlaurent/github-api-read-cache-service/config"
 	"go.uber.org/zap"
 )
@@ -81,7 +83,20 @@ func (ghc *githubClient) sendPaginatedGithubApiRequests(method string, url strin
 	var flatResponse []JsonObject
 
 	for {
-		requestUrl := fmt.Sprintf("%s?per_page=%d&page=%d", url, PAGE_SIZE, nextPage)
+		endpontUrl, err := netUrl.Parse(url)
+
+		if err != nil {
+			return nil, fmt.Errorf("Failed to encode request url: %v", err), http.StatusInternalServerError
+		}
+
+		queryParams := endpontUrl.Query()
+
+		queryParams.Add("per_page", fmt.Sprintf("%d", PAGE_SIZE))
+		queryParams.Add("page", fmt.Sprintf("%d", nextPage))
+
+		endpontUrl.RawQuery = queryParams.Encode()
+
+		requestUrl := endpontUrl.String()
 
 		req, err := http.NewRequestWithContext(ctx, method, requestUrl, nil)
 		if err != nil {
