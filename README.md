@@ -8,6 +8,8 @@
 ```cd github-api-read-cache-service```
 
 ### Building
+Golang is required: https://go.dev/doc/install
+
 Run the build script to build the service in all flavors.
 ```./scripts/build.sh```
 
