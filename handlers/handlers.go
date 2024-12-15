@@ -222,7 +222,7 @@ func (handler *httpHandlers) getBottomNReposHelper(w http.ResponseWriter, r *htt
 		n = len(netflixRepos)
 	}
 
-	if err := json.NewEncoder(w).Encode(netflixRepos[:n]); err != nil {
+	if err := json.NewEncoder(w).Encode(netflixRepos[len(netflixRepos)-n:]); err != nil {
 		handler.logger.Error("Failed to serialize")
 		http.Error(w, "Failed to encode json", http.StatusInternalServerError)
 	}

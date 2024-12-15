@@ -192,7 +192,7 @@ func sortBottomViewByCount(tuples []Tuple) {
 			return nameA < nameB
 		}
 
-		return countA < countB
+		return countA > countB
 	})
 }
 
@@ -202,7 +202,7 @@ func sortBottomViewByTimestamp(tuples []Tuple) {
 		timeA, _ := time.Parse(time.RFC3339, tuples[a][1].(string))
 		timeB, _ := time.Parse(time.RFC3339, tuples[b][1].(string))
 
-		return timeA.Before(timeB)
+		return timeA.After(timeB)
 	})
 }
 
