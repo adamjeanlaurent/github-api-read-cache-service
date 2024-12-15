@@ -179,7 +179,7 @@ func (c *cache) HydrateCache() (int, error) {
 	return http.StatusOK, nil
 }
 
-// Sorts list of [name: string, count: float] tuples by count ascending, when count values are the same, uses the name value alphabetically
+// Sorts list of [name: string, count: float] tuples by count descending, when count values are the same, uses the name value alphabetically
 func sortBottomViewByCount(tuples []Tuple) {
 	sort.Slice(tuples, func(a int, b int) bool {
 		countA := tuples[a][1].(float64)
@@ -196,7 +196,7 @@ func sortBottomViewByCount(tuples []Tuple) {
 	})
 }
 
-// Sorts list of [name: string, timestamp: string] tuples by timestamp value ascending
+// Sorts list of [name: string, timestamp: string] tuples by timestamp value descending
 func sortBottomViewByTimestamp(tuples []Tuple) {
 	sort.Slice(tuples, func(a int, b int) bool {
 		timeA, _ := time.Parse(time.RFC3339, tuples[a][1].(string))
