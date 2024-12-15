@@ -22,6 +22,22 @@ ex. ```./bin/server-mac-arm --port=7101```
 
 ex. ```GITHUB_API_TOKEN=xyz123 ./bin/server-mac-arm --port=7101```
 
+### Testing
+
+Make requests to any of the following endpoints
+
+```
+http://localhost:{PORT}/healthcheck
+http://localhost:{PORT}/orgs/Netflix
+http://localhost:{PORT}/orgs/Netflix/members
+http://localhost:{PORT}/orgs/Netflix/repos
+http://localhost:{PORT}/view/bottom/{n}/forks
+http://localhost:{PORT/view/bottom/{n}/last_updated
+http://localhost:{PORT}/view/bottom/{n}/open_issues
+http://localhost:{PORT}/view/bottom/{n}/stars
+Any Other GitHub REST API Endpont (https://docs.github.com/en/rest?apiVersion=2022-11-28)
+```
+
 # Design Decisions
 
 ![image](https://github.com/user-attachments/assets/a999bf1f-76a7-4d61-b055-33fd706486c7)
